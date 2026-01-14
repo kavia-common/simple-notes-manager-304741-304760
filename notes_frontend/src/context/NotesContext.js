@@ -73,7 +73,10 @@ export function NotesProvider({ children }) {
   }, [service, pushToast]);
 
   const saveNote = useCallback(
-    async (id, patch) => {
+    async (id, patch, options = {}) => {
+      const source = options?.source || "explicit"; // "explicit" | "autosave"
+      const showSuccessToast = source !== "autosave";
+
       // Optimistic update: apply immediately.
       dispatch({ type: "UPDATE_NOTE", id, patch });
       dispatch({ type: "SAVE_START" });
@@ -94,10 +97,16 @@ export function NotesProvider({ children }) {
         }
 
         dispatch({ type: "SAVE_END" });
-        pushToast({ type: "success", title: "Saved", message: "Your changes were saved." });
+
+        // Autosave should be quiet to avoid toast spam while typing.
+        if (showSuccessToast) {
+          pushToast({ type: "success", title: "Saved", message: "Your changes were saved." });
+        }
+
         return true;
       } catch (e) {
         dispatch({ type: "SAVE_ERROR", error: e?.message });
+        // Always show errors (autosave failures matter).
         pushToast({ type: "error", title: "Save failed", message: e?.message || "Unable to save note." });
         return false;
       }

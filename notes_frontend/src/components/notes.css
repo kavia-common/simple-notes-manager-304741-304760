@@ -177,4 +177,10 @@
     max-width: 720px;
     margin: 0 auto;
   }
+
+  .mobileListOverlayInner:focus-visible {
+    outline: none;
+    box-shadow: var(--ring);
+    border-radius: 14px;
+  }
 }

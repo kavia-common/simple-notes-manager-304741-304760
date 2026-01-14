@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNotes } from "../context/NotesContext";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
@@ -9,10 +9,23 @@ import "./notes.css";
 function useDebouncedCallback(callback, delayMs) {
   const timer = useRef(null);
 
-  return (...args) => {
+  const cancel = useCallback(() => {
     if (timer.current) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => callback(...args), delayMs);
-  };
+    timer.current = null;
+  }, []);
+
+  const debounced = useCallback(
+    (...args) => {
+      cancel();
+      timer.current = window.setTimeout(() => callback(...args), delayMs);
+    },
+    [callback, delayMs, cancel]
+  );
+
+  // Expose cancel so callers can prevent stale autosaves.
+  debounced.cancel = cancel;
+
+  return debounced;
 }
 
 /**
@@ -21,52 +34,93 @@ function useDebouncedCallback(callback, delayMs) {
  */
 export function NoteEditor({ onNavigateToNote }) {
   const { state, actions } = useNotes();
-  const selected = useMemo(() => state.notes.find((n) => n.id === state.selectedId) || null, [state.notes, state.selectedId]);
+  const selected = useMemo(
+    () => state.notes.find((n) => n.id === state.selectedId) || null,
+    [state.notes, state.selectedId]
+  );
 
   const [draftTitle, setDraftTitle] = useState("");
   const [draftContent, setDraftContent] = useState("");
   const [dirty, setDirty] = useState(false);
 
+  // Monotonic counter to "invalidate" in-flight autosaves when user explicitly saves or switches notes.
+  const autosaveEpochRef = useRef(0);
+
   useEffect(() => {
+    // Switching notes should never allow the previous note's pending autosave to fire later.
+    autosaveEpochRef.current += 1;
     setDraftTitle(selected?.title || "");
     setDraftContent(selected?.content || "");
     setDirty(false);
   }, [selected?.id]); // reset when selection changes
 
-  const debouncedAutosave = useDebouncedCallback(async (id, patch) => {
-    await actions.saveNote(id, patch);
-  }, 650);
+  const debouncedAutosave = useDebouncedCallback(
+    async (id, patch, epoch) => {
+      // Ignore any autosave from an older epoch (selection changed or explicit save happened).
+      if (epoch !== autosaveEpochRef.current) return;
+      await actions.saveNote(id, patch, { source: "autosave" });
+    },
+    650
+  );
+
+  // Ensure no autosave is left hanging on unmount.
+  useEffect(() => {
+    return () => debouncedAutosave.cancel?.();
+  }, [debouncedAutosave]);
 
   const canSave = Boolean(selected) && dirty && state.status !== "saving";
 
   const onChangeTitle = (v) => {
     setDraftTitle(v);
     setDirty(true);
-    if (selected) debouncedAutosave(selected.id, { title: v, content: draftContent });
+    if (selected) {
+      const epoch = autosaveEpochRef.current;
+      debouncedAutosave(selected.id, { title: v, content: draftContent }, epoch);
+    }
   };
 
   const onChangeContent = (v) => {
     setDraftContent(v);
     setDirty(true);
-    if (selected) debouncedAutosave(selected.id, { title: draftTitle, content: v });
+    if (selected) {
+      const epoch = autosaveEpochRef.current;
+      debouncedAutosave(selected.id, { title: draftTitle, content: v }, epoch);
+    }
   };
 
   const onSaveNow = async () => {
     if (!selected) return;
-    await actions.saveNote(selected.id, { title: draftTitle, content: draftContent });
-    setDirty(false);
+
+    // Cancel any pending autosave so it won't race and "re-save" after explicit save.
+    debouncedAutosave.cancel?.();
+    autosaveEpochRef.current += 1;
+
+    const ok = await actions.saveNote(selected.id, { title: draftTitle, content: draftContent }, { source: "explicit" });
+    if (ok) setDirty(false);
   };
 
   const onDelete = async () => {
     if (!selected) return;
     const ok = window.confirm("Delete this note? This cannot be undone.");
     if (!ok) return;
+
+    // Cancel any pending autosave for the soon-to-be deleted note.
+    debouncedAutosave.cancel?.();
+    autosaveEpochRef.current += 1;
+
     const id = selected.id;
-    await actions.deleteNote(id);
-    onNavigateToNote(state.selectedId); // may now point to new selection
+    const deleted = await actions.deleteNote(id);
+    if (!deleted) return;
+
+    // Route must follow the new selection deterministically (or go home when empty).
+    onNavigateToNote(state.selectedId);
   };
 
   if (!selected) {
+    // Differentiate true-empty app state vs invalid route (/note/:id that doesn't exist).
+    const hasNotes = state.notes.length > 0;
+    const isInvalidSelection = Boolean(state.selectedId) && !selected;
+
     return (
       <Card className="panel">
         <CardBody>
@@ -74,8 +128,12 @@ export function NoteEditor({ onNavigateToNote }) {
             <div className="emptyLargeIcon" aria-hidden="true">
               ✎
             </div>
-            <div className="emptyTitle">Select a note</div>
-            <div className="emptyDesc">Choose a note from the list, or create a new one.</div>
+            <div className="emptyTitle">{hasNotes ? (isInvalidSelection ? "Note not found" : "Select a note") : "No notes yet"}</div>
+            <div className="emptyDesc">
+              {hasNotes
+                ? "Choose a note from the list, or create a new one."
+                : "Create your first note to get started."}
+            </div>
           </div>
         </CardBody>
       </Card>

@@ -60,8 +60,10 @@ export function NoteList({ onNavigateToNote }) {
               <div className="emptyIcon" aria-hidden="true">
                 ✦
               </div>
-              <div className="emptyTitle">No matching notes</div>
-              <div className="emptyDesc">Try a different search, or create a new note.</div>
+              <div className="emptyTitle">{state.notes.length === 0 ? "No notes yet" : "No matching notes"}</div>
+              <div className="emptyDesc">
+                {state.notes.length === 0 ? "Create your first note to get started." : "Try a different search, or create a new note."}
+              </div>
             </div>
           ) : (
             filtered.map((n) => (
