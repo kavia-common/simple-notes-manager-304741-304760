@@ -1,0 +1,180 @@
+.panel {
+  overflow: hidden;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panelTitle {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.panelSub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+.listArea {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100vh - 220px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.listSkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.noteRow {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 14px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.noteRow:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 1);
+  box-shadow: var(--shadow-sm);
+}
+
+.noteRowSelected {
+  border-color: rgba(37, 99, 235, 0.35);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.10);
+}
+
+.noteRowTitle {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.noteRowMeta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.noteRowPreview {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.noteRowDot {
+  opacity: 0.6;
+}
+
+.noteRowTime {
+  white-space: nowrap;
+}
+
+.editorActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.editorGrid {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.emptySmall,
+.emptyLarge {
+  text-align: center;
+  padding: 16px 10px;
+}
+
+.emptyIcon,
+.emptyLargeIcon {
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 8px auto;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: rgba(37, 99, 235, 0.10);
+  color: rgba(37, 99, 235, 0.95);
+  font-weight: 900;
+}
+
+.emptyLargeIcon {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+}
+
+.emptyTitle {
+  font-weight: 800;
+}
+
+.emptyDesc {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.hintRow {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.hintKey {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 8px;
+  padding: 2px 6px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.hintSep {
+  margin: 0 4px;
+  opacity: 0.6;
+}
+
+/* Mobile list overlay behavior */
+.mobileListOverlay {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .mobileListOverlay {
+    display: block;
+    position: fixed;
+    inset: 58px 0 0 0;
+    background: rgba(17, 24, 39, 0.32);
+    z-index: 30;
+    padding: 12px;
+  }
+
+  .mobileListOverlayInner {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+}
