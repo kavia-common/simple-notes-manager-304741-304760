@@ -167,11 +167,46 @@ export function NoteEditor({ onNavigateToNote }) {
               {state.status === "saving" ? "Saving…" : dirty ? "Unsaved changes (autosave enabled)" : "Up to date"}
             </div>
           </div>
+
           <div className="editorActions">
-            <Button variant="ghost" onClick={onSaveNow} disabled={!canSave}>
+            <button
+              type="button"
+              className={`pinButton pinButtonLarge ${selected.isPinned ? "pinButtonActive" : ""}`}
+              onClick={async () => {
+                // Ensure autosave doesn't race pin update.
+                debouncedAutosave.cancel?.();
+                autosaveEpochRef.current += 1;
+                await actions.togglePinNote?.(selected.id);
+              }}
+              aria-label={selected.isPinned ? "Unpin note" : "Pin note"}
+              title={selected.isPinned ? "Pinned" : "Pin"}
+            >
+              {selected.isPinned ? "📌" : "📍"}
+            </button>
+
+            <div className="colorPicker" role="group" aria-label="Note color tag">
+              {["blue", "amber", "emerald", "violet", "slate"].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`colorDot colorDot-${c} ${selected.color === c ? "colorDotActive" : ""}`}
+                  aria-label={`Set note color to ${c}`}
+                  title={`Color: ${c}`}
+                  onClick={async () => {
+                    if (!selected) return;
+                    // Persist immediately; keep editor "clean" since it's metadata.
+                    debouncedAutosave.cancel?.();
+                    autosaveEpochRef.current += 1;
+                    await actions.saveNote(selected.id, { color: c }, { source: "explicit" });
+                  }}
+                />
+              ))}
+            </div>
+
+            <Button variant="ghost" onClick={onSaveNow} disabled={!canSave} aria-label="Save note">
               Save
             </Button>
-            <Button variant="danger" onClick={onDelete}>
+            <Button variant="danger" onClick={onDelete} aria-label="Delete note">
               Delete
             </Button>
           </div>
@@ -183,6 +218,7 @@ export function NoteEditor({ onNavigateToNote }) {
             value={draftTitle}
             onChange={(e) => onChangeTitle(e.target.value)}
             placeholder="Note title"
+            aria-label="Note title"
           />
           <TextArea
             label="Content"
@@ -191,6 +227,7 @@ export function NoteEditor({ onNavigateToNote }) {
             placeholder="Write your note…"
             rows={14}
             style={{ resize: "vertical", minHeight: 260 }}
+            aria-label="Note content"
           />
         </div>
       </CardBody>

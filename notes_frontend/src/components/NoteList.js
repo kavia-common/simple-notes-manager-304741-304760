@@ -13,15 +13,17 @@ import "./notes.css";
 export function NoteList({ onNavigateToNote }) {
   const { state, dispatch, actions } = useNotes();
 
+  const query = state.filter.trim();
+
   const filtered = useMemo(() => {
-    const q = state.filter.trim().toLowerCase();
+    const q = query.toLowerCase();
     if (!q) return state.notes;
     return state.notes.filter((n) => {
       const t = (n.title || "").toLowerCase();
       const c = (n.content || "").toLowerCase();
       return t.includes(q) || c.includes(q);
     });
-  }, [state.notes, state.filter]);
+  }, [state.notes, query]);
 
   return (
     <Card className="panel">
@@ -31,10 +33,13 @@ export function NoteList({ onNavigateToNote }) {
             <div className="panelTitle">Your notes</div>
             <div className="panelSub">Search, create, and manage</div>
           </div>
-          <Button onClick={async () => {
-            const note = await actions.createNote();
-            if (note) onNavigateToNote(note.id);
-          }}>
+          <Button
+            aria-label="Create a new note"
+            onClick={async () => {
+              const note = await actions.createNote();
+              if (note) onNavigateToNote(note.id);
+            }}
+          >
             New
           </Button>
         </div>
@@ -70,6 +75,7 @@ export function NoteList({ onNavigateToNote }) {
               <NoteListItem
                 key={n.id}
                 note={n}
+                query={query}
                 isSelected={n.id === state.selectedId}
                 onSelect={() => {
                   dispatch({ type: "SELECT_NOTE", id: n.id });

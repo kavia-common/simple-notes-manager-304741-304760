@@ -17,6 +17,31 @@ export const initialNotesState = {
   isListOpenMobile: false,
 };
 
+function getUpdatedAt(note) {
+  return typeof note?.updatedAt === "string" ? note.updatedAt : "";
+}
+
+function getIsPinned(note) {
+  return Boolean(note?.isPinned);
+}
+
+function sortNotesPinnedThenUpdatedDesc(notes) {
+  // Pinned first, then updatedAt desc. Stable by array order when ties.
+  const withIndex = notes.map((n, i) => ({ n, i }));
+  withIndex.sort((a, b) => {
+    const ap = getIsPinned(a.n);
+    const bp = getIsPinned(b.n);
+    if (ap !== bp) return ap ? -1 : 1;
+
+    const au = getUpdatedAt(a.n);
+    const bu = getUpdatedAt(b.n);
+    if (au !== bu) return bu.localeCompare(au);
+
+    return a.i - b.i;
+  });
+  return withIndex.map((x) => x.n);
+}
+
 /**
  * PUBLIC_INTERFACE
  * Notes reducer (pure) for unit testing and predictable state transitions.
@@ -29,7 +54,7 @@ export function notesReducer(state, action) {
       return {
         ...state,
         status: "idle",
-        notes: action.notes,
+        notes: sortNotesPinnedThenUpdatedDesc(action.notes),
         selectedId: action.selectedId ?? state.selectedId ?? (action.notes[0]?.id ?? null),
         error: null,
       };
@@ -45,28 +70,38 @@ export function notesReducer(state, action) {
     case "TOGGLE_LIST_MOBILE":
       return { ...state, isListOpenMobile: !state.isListOpenMobile };
 
-    case "CREATE_NOTE":
+    case "CREATE_NOTE": {
+      // Insert created note, then re-sort to ensure pinned ordering stays correct.
+      const next = sortNotesPinnedThenUpdatedDesc([action.note, ...state.notes]);
       return {
         ...state,
-        notes: [action.note, ...state.notes],
+        notes: next,
         selectedId: action.note.id,
         isListOpenMobile: false,
       };
+    }
 
     case "UPDATE_NOTE": {
-      const notes = state.notes.map((n) => (n.id === action.id ? { ...n, ...action.patch } : n));
-      // keep updated note first in list (common UX)
-      const updated = notes.find((n) => n.id === action.id);
-      const reordered = updated
-        ? [updated, ...notes.filter((n) => n.id !== action.id)]
-        : notes;
-      return { ...state, notes: reordered };
+      const idx = state.notes.findIndex((n) => n.id === action.id);
+      if (idx === -1) return state;
+
+      const updated = { ...state.notes[idx], ...action.patch };
+      const next = [...state.notes.slice(0, idx), updated, ...state.notes.slice(idx + 1)];
+      return { ...state, notes: sortNotesPinnedThenUpdatedDesc(next) };
+    }
+
+    case "TOGGLE_PIN_NOTE": {
+      const idx = state.notes.findIndex((n) => n.id === action.id);
+      if (idx === -1) return state;
+
+      const updated = { ...state.notes[idx], isPinned: !Boolean(state.notes[idx]?.isPinned) };
+      const next = [...state.notes.slice(0, idx), updated, ...state.notes.slice(idx + 1)];
+      return { ...state, notes: sortNotesPinnedThenUpdatedDesc(next) };
     }
 
     case "DELETE_NOTE": {
       const remaining = state.notes.filter((n) => n.id !== action.id);
-      const nextSelected =
-        state.selectedId === action.id ? (remaining[0]?.id ?? null) : state.selectedId;
+      const nextSelected = state.selectedId === action.id ? (remaining[0]?.id ?? null) : state.selectedId;
       return { ...state, notes: remaining, selectedId: nextSelected };
     }
 

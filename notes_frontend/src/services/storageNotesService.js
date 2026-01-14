@@ -19,12 +19,31 @@ function writeAll(notes) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
 }
 
+function normalizeStoredNote(n) {
+  // Backward compatible defaults for older localStorage payloads.
+  return {
+    ...n,
+    title: typeof n?.title === "string" ? n.title : "Untitled note",
+    content: typeof n?.content === "string" ? n.content : "",
+    isPinned: Boolean(n?.isPinned),
+    color: typeof n?.color === "string" ? n.color : "blue",
+  };
+}
+
 /**
  * PUBLIC_INTERFACE
  * List all notes from localStorage.
  */
 export async function listNotes() {
-  const notes = readAll().sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+  const notes = readAll()
+    .map(normalizeStoredNote)
+    .sort((a, b) => {
+      const ap = Boolean(a?.isPinned);
+      const bp = Boolean(b?.isPinned);
+      if (ap !== bp) return ap ? -1 : 1;
+      return (b.updatedAt || "").localeCompare(a.updatedAt || "");
+    });
+
   return notes;
 }
 

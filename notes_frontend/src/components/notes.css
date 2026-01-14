@@ -57,10 +57,128 @@
   box-shadow: 0 10px 24px rgba(37, 99, 235, 0.10);
 }
 
+.noteRowTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .noteRowTitle {
   font-weight: 700;
   font-size: 14px;
   margin-bottom: 4px;
+  min-width: 0;
+}
+
+.noteRowRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.noteColorSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 24, 39, 0.18);
+  box-shadow: 0 1px 0 rgba(16, 24, 40, 0.06);
+}
+
+.noteColor-blue {
+  background: rgba(37, 99, 235, 0.85);
+}
+.noteColor-amber {
+  background: rgba(245, 158, 11, 0.9);
+}
+.noteColor-emerald {
+  background: rgba(16, 185, 129, 0.9);
+}
+.noteColor-violet {
+  background: rgba(139, 92, 246, 0.9);
+}
+.noteColor-slate {
+  background: rgba(100, 116, 139, 0.9);
+}
+
+.pinButton {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--color-text);
+  border-radius: 10px;
+  padding: 6px 8px;
+  cursor: pointer;
+  line-height: 1;
+  font-size: 14px;
+  transition: background 140ms ease, transform 140ms ease, border-color 140ms ease;
+}
+
+.pinButton:hover {
+  background: rgba(255, 255, 255, 1);
+  transform: translateY(-1px);
+}
+
+.pinButtonActive {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.pinButtonLarge {
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+
+.noteHighlight {
+  background: rgba(245, 158, 11, 0.20);
+  color: inherit;
+  border-radius: 6px;
+  padding: 0 3px;
+}
+
+.colorPicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.colorDot {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 24, 39, 0.18);
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.colorDot:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.colorDotActive {
+  border-color: rgba(37, 99, 235, 0.35);
+  box-shadow: var(--ring);
+}
+
+.colorDot-blue {
+  background: rgba(37, 99, 235, 0.85);
+}
+.colorDot-amber {
+  background: rgba(245, 158, 11, 0.9);
+}
+.colorDot-emerald {
+  background: rgba(16, 185, 129, 0.9);
+}
+.colorDot-violet {
+  background: rgba(139, 92, 246, 0.9);
+}
+.colorDot-slate {
+  background: rgba(100, 116, 139, 0.9);
 }
 
 .noteRowMeta {

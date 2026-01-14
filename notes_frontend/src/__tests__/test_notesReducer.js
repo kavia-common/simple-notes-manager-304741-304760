@@ -83,28 +83,43 @@ describe("notesReducer", () => {
     expect(s1.isListOpenMobile).toBe(false);
   });
 
-  test("UPDATE_NOTE patches note and reorders updated note to the top (stable ordering otherwise)", () => {
+  test("UPDATE_NOTE re-sorts with pinned-first and updatedAt desc", () => {
     const s0 = {
       ...initialNotesState,
       notes: [
-        makeNote("a", "2020-01-01T00:00:00.000Z"),
-        makeNote("b", "2020-01-02T00:00:00.000Z"),
-        makeNote("c", "2020-01-03T00:00:00.000Z"),
+        makeNote("a", "2020-01-03T00:00:00.000Z", { isPinned: false }),
+        makeNote("b", "2020-01-02T00:00:00.000Z", { isPinned: true }),
+        makeNote("c", "2020-01-01T00:00:00.000Z", { isPinned: true }),
       ],
       selectedId: "b",
     };
 
-    const s1 = notesReducer(s0, { type: "UPDATE_NOTE", id: "b", patch: { title: "B updated" } });
-    expect(s1.notes.map((n) => n.id)).toEqual(["b", "a", "c"]); // updated is first, others keep relative order
-    expect(s1.notes[0].title).toBe("B updated");
-    // Reducer update does not change selection (selection changes happen via SELECT_NOTE/CREATE/DELETE)
+    // Update an unpinned note's updatedAt to newest; pinned notes should still stay above it.
+    const s1 = notesReducer(s0, { type: "UPDATE_NOTE", id: "a", patch: { title: "A updated" } });
+
+    expect(s1.notes.map((n) => n.id)).toEqual(["b", "c", "a"]);
     expect(s1.selectedId).toBe("b");
   });
 
   test("UPDATE_NOTE for missing id keeps notes array unchanged", () => {
     const s0 = { ...initialNotesState, notes: [makeNote("a"), makeNote("b")] };
     const s1 = notesReducer(s0, { type: "UPDATE_NOTE", id: "missing", patch: { title: "x" } });
-    expect(s1.notes).toEqual(s0.notes);
+    expect(s1).toEqual(s0);
+  });
+
+  test("TOGGLE_PIN_NOTE toggles pin and re-sorts pinned notes above unpinned", () => {
+    const s0 = {
+      ...initialNotesState,
+      notes: [
+        makeNote("a", "2020-01-02T00:00:00.000Z", { isPinned: false }),
+        makeNote("b", "2020-01-03T00:00:00.000Z", { isPinned: false }),
+      ],
+    };
+
+    const s1 = notesReducer(s0, { type: "TOGGLE_PIN_NOTE", id: "a" });
+    expect(s1.notes[0].id).toBe("a");
+    expect(s1.notes[0].isPinned).toBe(true);
+    expect(s1.notes[1].id).toBe("b");
   });
 
   test("DELETE_NOTE removes note and if selected selects next (first remaining) deterministically", () => {

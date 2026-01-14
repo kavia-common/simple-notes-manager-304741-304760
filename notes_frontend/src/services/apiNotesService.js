@@ -80,11 +80,15 @@ function normalizeNote(raw, fallbackId) {
   const id = raw.id ?? fallbackId;
   if (!id) throw new Error("Invalid note response (missing id).");
 
+  const color = typeof raw.color === "string" ? raw.color : "blue";
+
   // We keep the shape consistent with local mode.
   return {
     id: String(id),
     title: typeof raw.title === "string" ? raw.title : "Untitled note",
     content: typeof raw.content === "string" ? raw.content : "",
+    isPinned: Boolean(raw.isPinned),
+    color,
     createdAt: typeof raw.createdAt === "string" ? raw.createdAt : undefined,
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : undefined,
   };

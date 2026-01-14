@@ -1,7 +1,14 @@
 import { notesReducer, initialNotesState } from "./context/notesReducer";
 
 test("notesReducer creates and selects a new note", () => {
-  const note = { id: "1", title: "A", content: "", updatedAt: "2020-01-01T00:00:00.000Z" };
+  const note = {
+    id: "1",
+    title: "A",
+    content: "",
+    updatedAt: "2020-01-01T00:00:00.000Z",
+    isPinned: false,
+    color: "blue",
+  };
   const s1 = notesReducer(initialNotesState, { type: "CREATE_NOTE", note });
   expect(s1.notes).toHaveLength(1);
   expect(s1.selectedId).toBe("1");

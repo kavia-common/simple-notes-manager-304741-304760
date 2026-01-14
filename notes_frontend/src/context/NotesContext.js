@@ -12,6 +12,9 @@ function makeNewNote() {
     id: createId(),
     title: "Untitled note",
     content: "",
+    // Small, high-impact metadata:
+    isPinned: false,
+    color: "blue", // one of: blue, amber, emerald, violet, slate
     createdAt: now,
     updatedAt: now,
   };
@@ -140,6 +143,37 @@ export function NotesProvider({ children }) {
     [service, pushToast]
   );
 
+  const togglePinNote = useCallback(
+    async (id) => {
+      const note = state.notes.find((n) => n.id === id);
+      if (!note) return false;
+
+      // Optimistic toggle for instant UI.
+      dispatch({ type: "TOGGLE_PIN_NOTE", id });
+      dispatch({ type: "SAVE_START" });
+
+      try {
+        const now = new Date().toISOString();
+
+        // Persist pin change; update updatedAt so ordering stays consistent across reloads.
+        const updated = await service.updateNote(id, { isPinned: !Boolean(note.isPinned), updatedAt: now });
+
+        if (updated && updated.id === id) {
+          dispatch({ type: "UPDATE_NOTE", id, patch: updated });
+        }
+
+        dispatch({ type: "SAVE_END" });
+        // No toast (small action, avoid noise)
+        return true;
+      } catch (e) {
+        dispatch({ type: "SAVE_ERROR", error: e?.message });
+        pushToast({ type: "error", title: "Pin failed", message: e?.message || "Unable to pin/unpin note." });
+        return false;
+      }
+    },
+    [service, pushToast, state.notes]
+  );
+
   const value = useMemo(
     () => ({
       state,
@@ -149,9 +183,10 @@ export function NotesProvider({ children }) {
         createNote,
         saveNote,
         deleteNote,
+        togglePinNote,
       },
     }),
-    [state, loadNotes, createNote, saveNote, deleteNote]
+    [state, loadNotes, createNote, saveNote, deleteNote, togglePinNote]
   );
 
   return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>;
