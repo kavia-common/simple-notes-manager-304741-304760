@@ -47,12 +47,29 @@ export function NoteEditor({ onNavigateToNote }) {
   const autosaveEpochRef = useRef(0);
 
   useEffect(() => {
-    // Switching notes should never allow the previous note's pending autosave to fire later.
+    // Always invalidate in-flight autosaves when the selected note changes or is refreshed externally.
     autosaveEpochRef.current += 1;
-    setDraftTitle(selected?.title || "");
-    setDraftContent(selected?.content || "");
-    setDirty(false);
-  }, [selected?.id]); // reset when selection changes
+
+    // If the selection id changes, we always reset drafts to the new note.
+    // If only the selected note's fields changed (e.g. background refresh), only reset drafts
+    // when the user is not actively editing (dirty=false) to avoid clobbering local typing.
+    setDraftTitle((prev) => {
+      if (!selected?.id) return "";
+      if (!dirty || prev === "" || prev === (selected?.title || "")) return selected?.title || "";
+      return prev;
+    });
+
+    setDraftContent((prev) => {
+      if (!selected?.id) return "";
+      if (!dirty || prev === "" || prev === (selected?.content || "")) return selected?.content || "";
+      return prev;
+    });
+
+    // Clear dirty only when truly switching notes; field updates should not clear user edits.
+    if (!dirty || (selected?.id == null)) {
+      setDirty(false);
+    }
+  }, [selected?.id, selected?.title, selected?.content, dirty]); // reset when selection/fields change (lint-safe, no clobber while typing)
 
   const debouncedAutosave = useDebouncedCallback(
     async (id, patch, epoch) => {
