@@ -2,16 +2,19 @@
  * Notes state shape:
  * - notes: Note[]
  * - selectedId: string|null
- * - filter: string
+ * - filter: { query: string, color: string, pinnedOnly: boolean }
  * - status: 'idle'|'loading'|'saving'|'error'
  * - error: string|null
  * - isListOpenMobile: boolean
  */
-
 export const initialNotesState = {
   notes: [],
   selectedId: null,
-  filter: "",
+  filter: {
+    query: "",
+    color: "all", // "all" | supported color names
+    pinnedOnly: false,
+  },
   status: "idle",
   error: null,
   isListOpenMobile: false,
@@ -42,6 +45,18 @@ function sortNotesPinnedThenUpdatedDesc(notes) {
   return withIndex.map((x) => x.n);
 }
 
+function normalizeFilterValue(value) {
+  if (typeof value === "string") {
+    return { query: value, color: "all", pinnedOnly: false };
+  }
+  const v = value && typeof value === "object" ? value : {};
+  return {
+    query: typeof v.query === "string" ? v.query : "",
+    color: typeof v.color === "string" ? v.color : "all",
+    pinnedOnly: Boolean(v.pinnedOnly),
+  };
+}
+
 /**
  * PUBLIC_INTERFACE
  * Notes reducer (pure) for unit testing and predictable state transitions.
@@ -50,19 +65,23 @@ export function notesReducer(state, action) {
   switch (action.type) {
     case "LOAD_START":
       return { ...state, status: "loading", error: null };
-    case "LOAD_SUCCESS":
+    case "LOAD_SUCCESS": {
+      const sorted = sortNotesPinnedThenUpdatedDesc(action.notes);
       return {
         ...state,
         status: "idle",
-        notes: sortNotesPinnedThenUpdatedDesc(action.notes),
-        selectedId: action.selectedId ?? state.selectedId ?? (action.notes[0]?.id ?? null),
+        notes: sorted,
+        selectedId: action.selectedId ?? state.selectedId ?? (sorted[0]?.id ?? null),
         error: null,
       };
+    }
     case "LOAD_ERROR":
       return { ...state, status: "error", error: action.error || "Failed to load notes." };
 
     case "SET_FILTER":
-      return { ...state, filter: action.value };
+      return { ...state, filter: normalizeFilterValue(action.value) };
+    case "PATCH_FILTER":
+      return { ...state, filter: { ...state.filter, ...normalizeFilterValue({ ...state.filter, ...action.patch }) } };
 
     case "SELECT_NOTE":
       return { ...state, selectedId: action.id, isListOpenMobile: false };
@@ -99,9 +118,26 @@ export function notesReducer(state, action) {
       return { ...state, notes: sortNotesPinnedThenUpdatedDesc(next) };
     }
 
+    case "BULK_PIN_NOTES": {
+      const ids = Array.isArray(action.ids) ? action.ids : [];
+      if (ids.length === 0) return state;
+      const idSet = new Set(ids);
+      const next = state.notes.map((n) => (idSet.has(n.id) ? { ...n, isPinned: Boolean(action.isPinned) } : n));
+      return { ...state, notes: sortNotesPinnedThenUpdatedDesc(next) };
+    }
+
     case "DELETE_NOTE": {
       const remaining = state.notes.filter((n) => n.id !== action.id);
       const nextSelected = state.selectedId === action.id ? (remaining[0]?.id ?? null) : state.selectedId;
+      return { ...state, notes: remaining, selectedId: nextSelected };
+    }
+
+    case "BULK_DELETE_NOTES": {
+      const ids = Array.isArray(action.ids) ? action.ids : [];
+      if (ids.length === 0) return state;
+      const idSet = new Set(ids);
+      const remaining = state.notes.filter((n) => !idSet.has(n.id));
+      const nextSelected = state.selectedId && idSet.has(state.selectedId) ? (remaining[0]?.id ?? null) : state.selectedId;
       return { ...state, notes: remaining, selectedId: nextSelected };
     }
 

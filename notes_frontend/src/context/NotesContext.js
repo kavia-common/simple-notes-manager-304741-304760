@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from "react";
 import { getNotesService } from "../services/notesService";
 import { createId } from "../utils/id";
 import { initialNotesState, notesReducer } from "./notesReducer";
@@ -20,6 +20,50 @@ function makeNewNote() {
   };
 }
 
+function parseBooleanParam(v) {
+  if (v == null) return false;
+  const s = String(v).toLowerCase().trim();
+  return s === "1" || s === "true" || s === "yes" || s === "on";
+}
+
+function parseFilterFromUrl() {
+  // This provider can run outside the router in tests, so guard window usage.
+  if (typeof window === "undefined") return null;
+  try {
+    const url = new URL(window.location.href);
+    const query = url.searchParams.get("q") ?? "";
+    const color = url.searchParams.get("color") ?? "all";
+    const pinnedOnly = parseBooleanParam(url.searchParams.get("pinned"));
+    return { query, color, pinnedOnly };
+  } catch {
+    return null;
+  }
+}
+
+function writeFilterToUrl(filter) {
+  if (typeof window === "undefined") return;
+  try {
+    const url = new URL(window.location.href);
+    const query = typeof filter?.query === "string" ? filter.query.trim() : "";
+    const color = typeof filter?.color === "string" ? filter.color : "all";
+    const pinnedOnly = Boolean(filter?.pinnedOnly);
+
+    if (query) url.searchParams.set("q", query);
+    else url.searchParams.delete("q");
+
+    if (color && color !== "all") url.searchParams.set("color", color);
+    else url.searchParams.delete("color");
+
+    if (pinnedOnly) url.searchParams.set("pinned", "1");
+    else url.searchParams.delete("pinned");
+
+    // Avoid pushing history entries on every keystroke.
+    window.history.replaceState(null, "", url.toString());
+  } catch {
+    // ignore (non-browser contexts)
+  }
+}
+
 /**
  * PUBLIC_INTERFACE
  * Notes provider: manages notes, selection, filtering, and persistence (API or localStorage).
@@ -28,6 +72,23 @@ export function NotesProvider({ children }) {
   const [state, dispatch] = useReducer(notesReducer, initialNotesState);
   const service = useMemo(() => getNotesService(), []);
   const { pushToast } = useToasts();
+
+  // Ensure URL -> state is applied once at startup (shareable filter state).
+  const didInitFilterFromUrlRef = useRef(false);
+  useEffect(() => {
+    if (didInitFilterFromUrlRef.current) return;
+    didInitFilterFromUrlRef.current = true;
+
+    const fromUrl = parseFilterFromUrl();
+    if (fromUrl) {
+      dispatch({ type: "SET_FILTER", value: fromUrl });
+    }
+  }, []);
+
+  // State -> URL sync (no localStorage changes).
+  useEffect(() => {
+    writeFilterToUrl(state.filter);
+  }, [state.filter]);
 
   const loadNotes = useCallback(async () => {
     dispatch({ type: "LOAD_START" });
@@ -174,6 +235,53 @@ export function NotesProvider({ children }) {
     [service, pushToast, state.notes]
   );
 
+  const bulkPinNotes = useCallback(
+    async (ids, isPinned) => {
+      const safeIds = Array.from(new Set((Array.isArray(ids) ? ids : []).filter(Boolean)));
+      if (safeIds.length === 0) return false;
+
+      // Optimistic bulk pin.
+      dispatch({ type: "BULK_PIN_NOTES", ids: safeIds, isPinned });
+      dispatch({ type: "SAVE_START" });
+
+      try {
+        const now = new Date().toISOString();
+        // Persist using existing updateNote endpoint (no new backend dependency).
+        await Promise.all(safeIds.map((id) => service.updateNote(id, { isPinned: Boolean(isPinned), updatedAt: now })));
+        dispatch({ type: "SAVE_END" });
+        return true;
+      } catch (e) {
+        dispatch({ type: "SAVE_ERROR", error: e?.message });
+        pushToast({ type: "error", title: "Bulk pin failed", message: e?.message || "Unable to pin/unpin selected notes." });
+        return false;
+      }
+    },
+    [service, pushToast]
+  );
+
+  const bulkDeleteNotes = useCallback(
+    async (ids) => {
+      const safeIds = Array.from(new Set((Array.isArray(ids) ? ids : []).filter(Boolean)));
+      if (safeIds.length === 0) return false;
+
+      // Optimistic bulk delete.
+      dispatch({ type: "BULK_DELETE_NOTES", ids: safeIds });
+      dispatch({ type: "SAVE_START" });
+
+      try {
+        await Promise.all(safeIds.map((id) => service.deleteNote(id)));
+        dispatch({ type: "SAVE_END" });
+        pushToast({ type: "success", title: "Deleted", message: `Removed ${safeIds.length} note${safeIds.length === 1 ? "" : "s"}.` });
+        return true;
+      } catch (e) {
+        dispatch({ type: "SAVE_ERROR", error: e?.message });
+        pushToast({ type: "error", title: "Bulk delete failed", message: e?.message || "Unable to delete selected notes." });
+        return false;
+      }
+    },
+    [service, pushToast]
+  );
+
   const value = useMemo(
     () => ({
       state,
@@ -184,9 +292,11 @@ export function NotesProvider({ children }) {
         saveNote,
         deleteNote,
         togglePinNote,
+        bulkPinNotes,
+        bulkDeleteNotes,
       },
     }),
-    [state, loadNotes, createNote, saveNote, deleteNote, togglePinNote]
+    [state, loadNotes, createNote, saveNote, deleteNote, togglePinNote, bulkPinNotes, bulkDeleteNotes]
   );
 
   return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>;

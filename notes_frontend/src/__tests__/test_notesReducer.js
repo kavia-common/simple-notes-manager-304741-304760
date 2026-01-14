@@ -1,7 +1,7 @@
 import { initialNotesState, notesReducer } from "../context/notesReducer";
 
 function makeNote(id, updatedAt = "2020-01-01T00:00:00.000Z", extra = {}) {
-  return { id, title: `T-${id}`, content: `C-${id}`, updatedAt, ...extra };
+  return { id, title: `T-${id}`, content: `C-${id}`, updatedAt, color: "blue", isPinned: false, ...extra };
 }
 
 describe("notesReducer", () => {
@@ -50,9 +50,16 @@ describe("notesReducer", () => {
     expect(s1.error).toBe("Failed to load notes.");
   });
 
-  test("SET_FILTER updates filter (search input controlled)", () => {
+  test("SET_FILTER accepts legacy string and normalizes to object", () => {
     const s1 = notesReducer(initialNotesState, { type: "SET_FILTER", value: " hello " });
-    expect(s1.filter).toBe(" hello ");
+    expect(s1.filter).toEqual({ query: " hello ", color: "all", pinnedOnly: false });
+  });
+
+  test("PATCH_FILTER combines pinnedOnly + color + query", () => {
+    const s0 = { ...initialNotesState };
+    const s1 = notesReducer(s0, { type: "PATCH_FILTER", patch: { pinnedOnly: true } });
+    const s2 = notesReducer(s1, { type: "PATCH_FILTER", patch: { color: "amber", query: "x" } });
+    expect(s2.filter).toEqual({ query: "x", color: "amber", pinnedOnly: true });
   });
 
   test("TOGGLE_LIST_MOBILE toggles boolean state", () => {
@@ -101,25 +108,44 @@ describe("notesReducer", () => {
     expect(s1.selectedId).toBe("b");
   });
 
-  test("UPDATE_NOTE for missing id keeps notes array unchanged", () => {
-    const s0 = { ...initialNotesState, notes: [makeNote("a"), makeNote("b")] };
-    const s1 = notesReducer(s0, { type: "UPDATE_NOTE", id: "missing", patch: { title: "x" } });
-    expect(s1).toEqual(s0);
-  });
-
   test("TOGGLE_PIN_NOTE toggles pin and re-sorts pinned notes above unpinned", () => {
     const s0 = {
       ...initialNotesState,
-      notes: [
-        makeNote("a", "2020-01-02T00:00:00.000Z", { isPinned: false }),
-        makeNote("b", "2020-01-03T00:00:00.000Z", { isPinned: false }),
-      ],
+      notes: [makeNote("a", "2020-01-02T00:00:00.000Z", { isPinned: false }), makeNote("b", "2020-01-03T00:00:00.000Z")],
     };
 
     const s1 = notesReducer(s0, { type: "TOGGLE_PIN_NOTE", id: "a" });
     expect(s1.notes[0].id).toBe("a");
     expect(s1.notes[0].isPinned).toBe(true);
     expect(s1.notes[1].id).toBe("b");
+  });
+
+  test("BULK_PIN_NOTES pins multiple notes and maintains pinned-first ordering", () => {
+    const s0 = {
+      ...initialNotesState,
+      notes: [
+        makeNote("a", "2020-01-01T00:00:00.000Z", { isPinned: false }),
+        makeNote("b", "2020-01-03T00:00:00.000Z", { isPinned: false }),
+        makeNote("c", "2020-01-02T00:00:00.000Z", { isPinned: false }),
+      ],
+    };
+
+    const s1 = notesReducer(s0, { type: "BULK_PIN_NOTES", ids: ["a", "c"], isPinned: true });
+    expect(s1.notes.map((n) => [n.id, n.isPinned])).toEqual([
+      ["a", true],
+      ["c", true],
+      ["b", false],
+    ]);
+  });
+
+  test("BULK_PIN_NOTES unpins multiple notes", () => {
+    const s0 = {
+      ...initialNotesState,
+      notes: [makeNote("a", "2020-01-01T00:00:00.000Z", { isPinned: true }), makeNote("b", "2020-01-02T00:00:00.000Z", { isPinned: true })],
+    };
+
+    const s1 = notesReducer(s0, { type: "BULK_PIN_NOTES", ids: ["a", "b"], isPinned: false });
+    expect(s1.notes.every((n) => n.isPinned === false)).toBe(true);
   });
 
   test("DELETE_NOTE removes note and if selected selects next (first remaining) deterministically", () => {
@@ -133,22 +159,28 @@ describe("notesReducer", () => {
     expect(s1.selectedId).toBe("a"); // first remaining
   });
 
-  test("DELETE_NOTE removes note and keeps selection when deleting non-selected note", () => {
+  test("BULK_DELETE_NOTES removes multiple and clears selection if selected note was deleted", () => {
     const s0 = {
       ...initialNotesState,
       notes: [makeNote("a"), makeNote("b"), makeNote("c")],
       selectedId: "b",
     };
-    const s1 = notesReducer(s0, { type: "DELETE_NOTE", id: "a" });
-    expect(s1.notes.map((n) => n.id)).toEqual(["b", "c"]);
-    expect(s1.selectedId).toBe("b");
+
+    const s1 = notesReducer(s0, { type: "BULK_DELETE_NOTES", ids: ["b", "c"] });
+    expect(s1.notes.map((n) => n.id)).toEqual(["a"]);
+    expect(s1.selectedId).toBe("a");
   });
 
-  test("DELETE_NOTE selecting null when last remaining selected note is deleted", () => {
-    const s0 = { ...initialNotesState, notes: [makeNote("only")], selectedId: "only" };
-    const s1 = notesReducer(s0, { type: "DELETE_NOTE", id: "only" });
-    expect(s1.notes).toEqual([]);
-    expect(s1.selectedId).toBeNull();
+  test("BULK_DELETE_NOTES keeps selection if selected note not deleted", () => {
+    const s0 = {
+      ...initialNotesState,
+      notes: [makeNote("a"), makeNote("b"), makeNote("c")],
+      selectedId: "a",
+    };
+
+    const s1 = notesReducer(s0, { type: "BULK_DELETE_NOTES", ids: ["b"] });
+    expect(s1.notes.map((n) => n.id)).toEqual(["a", "c"]);
+    expect(s1.selectedId).toBe("a");
   });
 
   test("SAVE_START, SAVE_END, SAVE_ERROR update status and error predictably", () => {

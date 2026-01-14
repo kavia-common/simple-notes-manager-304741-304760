@@ -32,7 +32,7 @@ function highlightText(text, query) {
  * PUBLIC_INTERFACE
  * Single note preview row in the list.
  */
-export function NoteListItem({ note, query = "", isSelected, onSelect }) {
+export function NoteListItem({ note, query = "", isSelected, isMultiSelected = false, onSelect, onToggleSelectionKeyDown }) {
   const { actions } = useNotes();
 
   const preview = useMemo(() => {
@@ -53,9 +53,11 @@ export function NoteListItem({ note, query = "", isSelected, onSelect }) {
   return (
     <button
       type="button"
-      className={`noteRow ${isSelected ? "noteRowSelected" : ""}`}
+      className={`noteRow ${isSelected ? "noteRowSelected" : ""} ${isMultiSelected ? "noteRowMultiSelected" : ""}`}
       onClick={onSelect}
+      onKeyDown={onToggleSelectionKeyDown}
       aria-label={`Open note: ${note.title || "Untitled note"}`}
+      aria-pressed={isMultiSelected ? true : undefined}
     >
       <div className="noteRowTop">
         <div className="noteRowTitle">{titleNode}</div>
